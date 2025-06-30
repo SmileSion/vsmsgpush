@@ -17,8 +17,11 @@ func SetupRouter() *gin.Engine {
 		wechatServer.RegisterRoutes(wechatGroup)
 	}
 
-	// 注册你的接口路由
-	r.POST("/api/push_template", handler.PushTemplateHandler)
+	apiGroup := r.Group("/push")
+	{
+		apiGroup.POST("/template", handler.PushTemplateHandler)
+		
+	}
 
 	return r
 }

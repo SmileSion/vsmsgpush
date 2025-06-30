@@ -14,7 +14,7 @@ func main() {
 	logger.InitLogger()
 	r := api.SetupRouter()
 
-	port := ":8080"
+	port := ":9010"
 	fmt.Printf("服务启动，监听端口 %s\n", port)
 	if err := r.Run(port); err != nil {
 		fmt.Printf("服务启动失败: %v\n", err)
