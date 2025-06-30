@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+
 	config.InitConfig()
 	logger.InitLogger()
 	r := api.SetupRouter()
@@ -18,7 +19,7 @@ func main() {
 	if err := r.Run(port); err != nil {
 		fmt.Printf("服务启动失败: %v\n", err)
 	}
-	
+
 	defer func() {
         if err := logger.CloseAsyncWriters(); err != nil {
             log.Printf("关闭日志写入器失败: %v", err)
