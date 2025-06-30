@@ -2,13 +2,15 @@ package test
 
 import (
 	"testing"
-	"vxmsgpush/utils"
+	"vxmsgpush/vxmsg"
+	"vxmsgpush/logger"
 )
 
 func TestGetUserOpenIDByMobile(t *testing.T) {
-	mobile := "" // 测试手机号
+	logger.InitLogger()
+	mobile := "18918399562" // 测试手机号
 
-	openid, err := utils.GetUserOpenIDByMobile(mobile)
+	openid, err := vxmsg.GetUserOpenIDByMobile(mobile)
 	if err != nil {
 		t.Fatalf("调用失败: %v", err)
 	}

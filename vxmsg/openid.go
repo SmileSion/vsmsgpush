@@ -1,4 +1,4 @@
-package utils
+package vxmsg
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"vxmsgpush/logger"
 )
 
 type userIdRequest struct {
@@ -49,10 +50,16 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 		TxnIttChnlId:      "99990001000000000000000",
 	}
 
-	jsonData, _ := json.Marshal(reqBody)
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		logger.Logger.Errorf("手机号查询请求体序列化失败: %v", err)
+		return "", fmt.Errorf("手机号查询请求体序列化失败: %v", err)
+	}
+	logger.Logger.Debugf("手机号查询请求体: %s", string(jsonData))
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
+		logger.Logger.Errorf("构造请求失败: %v", err)
 		return "", fmt.Errorf("构造请求失败: %v", err)
 	}
 
@@ -67,25 +74,35 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		logger.Logger.Errorf("请求失败: %v", err)
 		return "", fmt.Errorf("请求失败: %v", err)
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Logger.Errorf("读取响应体失败: %v", err)
+		return "", fmt.Errorf("读取响应体失败: %v", err)
+	}
+	logger.Logger.Debugf("响应体: %s", string(bodyBytes))
 
 	var raw rawResponse
 	if err := json.Unmarshal(bodyBytes, &raw); err != nil {
+		logger.Logger.Errorf("解析外层 JSON 失败: %v", err)
 		return "", fmt.Errorf("解析外层 JSON 失败: %v", err)
 	}
 
 	var parsed parsedBody
 	if err := json.Unmarshal([]byte(raw.CResponseBody), &parsed); err != nil {
+		logger.Logger.Errorf("解析内层 JSON 失败: %v", err)
 		return "", fmt.Errorf("解析内层 JSON 失败: %v", err)
 	}
 
 	if parsed.ID == "" {
+		logger.Logger.Errorf("未找到 ID，响应可能异常: %s", raw.CResponseBody)
 		return "", fmt.Errorf("未找到 ID，响应可能异常: %s", raw.CResponseBody)
 	}
 
+	logger.Logger.Infof("手机号 %s 查询到的微信ID: %s", mobile, parsed.ID)
 	return parsed.ID, nil
 }
