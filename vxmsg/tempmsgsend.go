@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"vxmsgpush/logger"
 	"vxmsgpush/vxmsg/internal"
@@ -36,10 +37,20 @@ func SendTemplateMsg(msg TemplateMsg) error {
 	}
 	logger.Logger.Debugf("模板消息JSON: %s", string(data))
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	client := &http.Client{Timeout: 5 * time.Second}
+	reqBody := bytes.NewBuffer(data)
+
+	resp, err := client.Post(url, "application/json", reqBody)
 	if err != nil {
-		logger.Logger.Errorf("请求微信失败: %v", err)
-		return fmt.Errorf("请求微信失败: %v", err)
+		logger.Logger.Warnf("第一次发送失败，准备重试: %v", err)
+		time.Sleep(500 * time.Millisecond)
+
+		// 重新创建 buffer，因为之前那个已经被读完了
+		reqBody = bytes.NewBuffer(data)
+		resp, err = client.Post(url, "application/json", reqBody)
+		if err != nil {
+			return fmt.Errorf("请求微信失败: %v", err)
+		}
 	}
 	defer resp.Body.Close()
 
