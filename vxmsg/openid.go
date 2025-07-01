@@ -32,7 +32,7 @@ type parsedBody struct {
 
 // GetUserOpenIDByMobile 根据手机号查询微信 openid
 func GetUserOpenIDByMobile(mobile string) (string, error) {
-	url := "https://zwfwxtzx.shaanxi.gov.cn:8202/gsp/uc10051"
+	url := "http://192.170.144.52:9010/zwfwxtzx/gsp/uc10051"
 
 	reqBody := userIdRequest{}
 	reqBody.TxnBodyCom.Mobile = mobile

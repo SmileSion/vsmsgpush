@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_NAME="gitea-1.24.2-linux-amd64"                  # 可执行文件名称（需替换为你的程序）
+APP_NAME="vxmsgpush-linux-amd64"                  # 可执行文件名称（需替换为你的程序）
 LOG_FILE="./run.log"            # 日志文件路径
 PID_FILE="./run.pid"            # 保存进程 ID 的文件
 

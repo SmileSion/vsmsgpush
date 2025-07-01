@@ -37,7 +37,7 @@ func GetAccessToken() (string, error) {
 	appID := config.Conf.VxKey.AppId
 	appSecret := config.Conf.VxKey.AppSecret
 
-	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
+	url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
 	resp, err := http.Get(url)
 	if err != nil {
 		logger.Logger.Errorf("获取token失败: %v", err)

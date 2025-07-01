@@ -26,7 +26,7 @@ func SendTextMessage(toUser string, content string) error {
 	}
 	logger.Logger.Infof("获取access_token成功: %s", accessToken)
 
-	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token=%s", accessToken)
+	url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/message/custom/send?access_token=%s", accessToken)
 	logger.Logger.Infof("发送客服消息，URL: %s", url)
 
 	msg := TextMsg{

@@ -17,10 +17,10 @@ func SetupRouter() *gin.Engine {
 		wechatServer.RegisterRoutes(wechatGroup)
 	}
 
-	apiGroup := r.Group("/push")
+	apiGroup := r.Group("/push", onlyAllowLocalhost())
 	{
 		apiGroup.POST("/template", handler.PushTemplateHandler)
-		
+
 	}
 
 	return r

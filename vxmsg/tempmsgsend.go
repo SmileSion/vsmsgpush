@@ -26,7 +26,7 @@ func SendTemplateMsg(msg TemplateMsg) error {
 	}
 	logger.Logger.Infof("获取access_token成功: %s", accessToken)
 
-	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=%s", accessToken)
+	url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/message/template/send?access_token=%s", accessToken)
 	logger.Logger.Infof("发送模板消息，URL: %s", url)
 
 	data, err := json.Marshal(msg)
