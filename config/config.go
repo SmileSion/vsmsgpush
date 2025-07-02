@@ -26,10 +26,17 @@ type SecurityConfig struct {
 	AllowedMobiles        []string `toml:"allowed_mobiles"`
 }
 
+type RedisConfig struct {
+	Addr     string `toml:"addr"`
+	Password string `toml:"password"`
+	DB       int    `toml:"db"`
+}
+
 type Config struct {
 	Log   LogConfig `toml:"log"`
 	VxKey VxConfig  `toml:"vxkey"`
 	Security SecurityConfig `toml:"security"`
+	Redis    RedisConfig    `toml:"redis"`
 }
 
 var Conf Config
