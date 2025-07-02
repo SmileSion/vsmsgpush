@@ -2,6 +2,7 @@ package api
 
 import (
 	"vxmsgpush/api/handler"
+	"vxmsgpush/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,10 +18,18 @@ func SetupRouter() *gin.Engine {
 		wechatServer.RegisterRoutes(wechatGroup)
 	}
 
-	apiGroup := r.Group("/push", onlyAllowLocalhost())
+	// 根据配置决定是否启用手机号白名单中间件
+	middlewares := []gin.HandlerFunc{
+		onlyAllowLocalhost(),
+	}
+
+	if config.Conf.Security.EnableMobileWhitelist {
+		middlewares = append(middlewares, mobileWhitelistMiddleware())
+	}
+
+	apiGroup := r.Group("/push", middlewares...)
 	{
 		apiGroup.POST("/template", handler.PushTemplateHandler)
-
 	}
 
 	return r

@@ -21,9 +21,15 @@ type VxConfig struct {
 	AppSecret string `toml:"appsecret"`
 }
 
+type SecurityConfig struct {
+	EnableMobileWhitelist bool `toml:"enable_mobile_whitelist"`
+	AllowedMobiles        []string `toml:"allowed_mobiles"`
+}
+
 type Config struct {
 	Log   LogConfig `toml:"log"`
 	VxKey VxConfig  `toml:"vxkey"`
+	Security SecurityConfig `toml:"security"`
 }
 
 var Conf Config
