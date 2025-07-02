@@ -15,6 +15,7 @@ const (
 func main() {
 	// 初始化配置和日志
 	config.InitConfig()
+	config.InitMobileWhitelist()
 	logger.InitLogger()
 
 	defer func() {
@@ -25,9 +26,8 @@ func main() {
 
 	// 初始化 Redis 客户端并启动消费者
 	rdb := consumer.InitRedis()
-	consumer.StartRedisConsumers(rdb, mainQueue, 1)
+	consumer.StartRedisConsumers(rdb, mainQueue, 100)
 	consumer.StartRetryScheduler(rdb, delayQueue, mainQueue)
-
 
 	// 初始化 Gin 路由
 	r := api.SetupRouter()

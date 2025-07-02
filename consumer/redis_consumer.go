@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"vxmsgpush/config"
 	"vxmsgpush/logger"
 	"vxmsgpush/vxmsg"
 
@@ -22,10 +23,10 @@ type RedisTemplateMessage struct {
 var ctx = context.Background()
 
 const (
-	maxRetryCount    = 5                        // 最大重试次数
-	deadLetterQueue  = "wx_template_msg_dlq"    // 死信队列
-	delayQueue       = "wx_template_msg_delay"  // 延迟队列（ZSet）
-	delayStepSeconds = 3                        // 每次重试递增秒数
+	maxRetryCount    = 5                       // 最大重试次数
+	deadLetterQueue  = "wx_template_msg_dlq"   // 死信队列
+	delayQueue       = "wx_template_msg_delay" // 延迟队列（ZSet）
+	delayStepSeconds = 3                       // 每次重试递增秒数
 )
 
 // 启动多个消费者
@@ -82,6 +83,12 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		var msg RedisTemplateMessage
 		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 			logger.Logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
+			continue
+		}
+
+		// 添加白名单校验
+		if !config.IsMobileAllowed(msg.Mobile) {
+			logger.Logger.Warnf("[worker-%d] 手机号 %s 不在白名单中，跳过", id, msg.Mobile)
 			continue
 		}
 
