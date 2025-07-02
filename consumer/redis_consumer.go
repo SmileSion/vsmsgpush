@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 	"vxmsgpush/logger"
 	"vxmsgpush/vxmsg"
@@ -15,16 +16,16 @@ type RedisTemplateMessage struct {
 	TemplateID string                 `json:"template_id"`
 	URL        string                 `json:"url"`
 	Data       map[string]interface{} `json:"data"`
-
-	// 新增字段，记录重试次数（json里可选）
-	RetryCount int `json:"retry_count,omitempty"`
+	RetryCount int                    `json:"retry_count,omitempty"` // 重试次数
 }
 
 var ctx = context.Background()
 
 const (
-	maxRetryCount = 5                    // 最大重试次数
-	deadLetterQueue = "wx_template_msg_dlq" // 死信队列名字
+	maxRetryCount    = 5                        // 最大重试次数
+	deadLetterQueue  = "wx_template_msg_dlq"    // 死信队列
+	delayQueue       = "wx_template_msg_delay"  // 延迟队列（ZSet）
+	delayStepSeconds = 3                        // 每次重试递增秒数
 )
 
 // 启动多个消费者
@@ -35,7 +36,36 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, workerCount int) {
 	logger.Logger.Infof("[redis] 启动 %d 个 worker 监听队列 %s", workerCount, queueName)
 }
 
-// 单个 worker 消费循环
+// 启动延迟队列调度器（定时扫描）
+func StartRetryScheduler(rdb *redis.Client, delayQueue, mainQueue string) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			now := float64(time.Now().Unix())
+			msgs, err := rdb.ZRangeByScore(ctx, delayQueue, &redis.ZRangeBy{
+				Min: "0", Max: fmt.Sprintf("%f", now), Count: 10,
+			}).Result()
+			if err != nil {
+				logger.Logger.Errorf("[scheduler] 获取延迟消息失败: %v", err)
+				continue
+			}
+			for _, raw := range msgs {
+				// 投入主队列
+				if err := rdb.RPush(ctx, mainQueue, raw).Err(); err != nil {
+					logger.Logger.Errorf("[scheduler] 消息重投失败: %v", err)
+					continue
+				}
+				// 从延迟队列移除
+				rdb.ZRem(ctx, delayQueue, raw)
+				logger.Logger.Infof("[scheduler] 消息重新投递成功")
+			}
+		}
+	}()
+}
+
+// worker 消费循环
 func worker(rdb *redis.Client, queueName string, id int) {
 	for {
 		result, err := rdb.BRPop(ctx, 5*time.Second, queueName).Result()
@@ -51,14 +81,13 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		raw := result[1]
 		var msg RedisTemplateMessage
 		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
-			logger.Logger.Errorf("[worker-%d] JSON 解析失败: %v，消息内容: %s", id, err, raw)
+			logger.Logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
 			continue
 		}
 
 		openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 		if err != nil {
 			logger.Logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
-			// 这里可以考虑是否放回队列，暂不回退
 			continue
 		}
 
@@ -71,28 +100,28 @@ func worker(rdb *redis.Client, queueName string, id int) {
 
 		err = vxmsg.SendTemplateMsg(tpl)
 		if err != nil {
-			logger.Logger.Errorf("[worker-%d] 模板消息发送失败: %v", id, err)
-			// 重试次数+1
 			msg.RetryCount++
+			logger.Logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
+
 			if msg.RetryCount > maxRetryCount {
-				// 超过最大重试次数，写入死信队列
 				bs, _ := json.Marshal(msg)
-				if dlqErr := rdb.RPush(ctx, deadLetterQueue, bs).Err(); dlqErr != nil {
-					logger.Logger.Errorf("[worker-%d] 写入死信队列失败: %v", id, dlqErr)
+				if err := rdb.RPush(ctx, deadLetterQueue, bs).Err(); err != nil {
+					logger.Logger.Errorf("[worker-%d] 死信入队失败: %v", id, err)
 				} else {
-					logger.Logger.Warnf("[worker-%d] 消息放入死信队列，丢弃: %s", id, string(bs))
+					logger.Logger.Warnf("[worker-%d] 消息进入死信队列: %s", id, string(bs))
 				}
-				continue // 丢弃当前消息，避免死循环
+				continue
 			}
 
-			// 重试未超过阈值，重新放回队列尾部，稍微延迟防止刷屏
+			// 加入延迟队列
 			bs, _ := json.Marshal(msg)
-			if pushErr := rdb.RPush(ctx, queueName, bs).Err(); pushErr != nil {
-				logger.Logger.Errorf("[worker-%d] 重试消息入队失败: %v", id, pushErr)
+			delay := msg.RetryCount * delayStepSeconds
+			score := float64(time.Now().Add(time.Duration(delay) * time.Second).Unix())
+			if err := rdb.ZAdd(ctx, delayQueue, &redis.Z{Score: score, Member: bs}).Err(); err != nil {
+				logger.Logger.Errorf("[worker-%d] 延迟入队失败: %v", id, err)
 			} else {
-				logger.Logger.Infof("[worker-%d] 重试消息重新入队，重试次数: %d", id, msg.RetryCount)
+				logger.Logger.Infof("[worker-%d] 延迟消息入队，%ds 后重试，第 %d 次", id, delay, msg.RetryCount)
 			}
-			time.Sleep(time.Second)
 			continue
 		}
 
