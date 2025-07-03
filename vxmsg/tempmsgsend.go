@@ -11,11 +11,17 @@ import (
 	"vxmsgpush/vxmsg/internal"
 )
 
+type MiniProgram struct {
+	AppID    string `json:"appid"`
+	PagePath string `json:"pagepath"`
+}
+
 type TemplateMsg struct {
 	ToUser     string                 `json:"touser"`
 	TemplateID string                 `json:"template_id"`
 	URL        string                 `json:"url,omitempty"`
 	Data       map[string]interface{} `json:"data"`
+	MiniProgram *MiniProgram           `json:"miniprogram,omitempty"`
 }
 
 // SendTemplateMsg 发送模板消息

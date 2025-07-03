@@ -6,11 +6,17 @@ import (
 	"vxmsgpush/vxmsg"
 )
 
+type MiniProgram struct {
+	AppID    string `json:"appid"`
+	PagePath string `json:"pagepath"`
+}
+
 type PushTemplateRequest struct {
-	Mobile     string                 `json:"mobile" binding:"required"`
-	TemplateID string                 `json:"template_id" binding:"required"`
-	URL        string                 `json:"url"`
-	Data       map[string]interface{} `json:"data" binding:"required"`
+	Mobile      string                 `json:"mobile" binding:"required"`
+	TemplateID  string                 `json:"template_id" binding:"required"`
+	URL         string                 `json:"url"`
+	Data        map[string]interface{} `json:"data" binding:"required"`
+	MiniProgram *MiniProgram           `json:"miniprogram,omitempty"`
 }
 
 func PushTemplateHandler(c *gin.Context) {
@@ -20,22 +26,30 @@ func PushTemplateHandler(c *gin.Context) {
 		return
 	}
 
-	// 根据手机号获取微信OpenID
+	// 获取微信OpenID
 	openid, err := vxmsg.GetUserOpenIDByMobile(req.Mobile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户OpenID失败: " + err.Error()})
 		return
 	}
 
-	// 组装模板消息结构
+	// 构造模板消息
 	msg := vxmsg.TemplateMsg{
-		ToUser:     openid,
-		TemplateID: req.TemplateID,
-		URL:        req.URL,
-		Data:       req.Data,
+		ToUser:      openid,
+		TemplateID:  req.TemplateID,
+		URL:         req.URL,
+		Data:        req.Data,
+		MiniProgram: nil,
 	}
 
-	// 调用发送模板消息函数
+	if req.MiniProgram != nil {
+		msg.MiniProgram = &vxmsg.MiniProgram{
+			AppID:    req.MiniProgram.AppID,
+			PagePath: req.MiniProgram.PagePath,
+		}
+	}
+
+	// 发送消息
 	if err := vxmsg.SendTemplateMsg(msg); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "发送模板消息失败: " + err.Error()})
 		return

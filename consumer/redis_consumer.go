@@ -17,6 +17,7 @@ type RedisTemplateMessage struct {
 	TemplateID string                 `json:"template_id"`
 	URL        string                 `json:"url"`
 	Data       map[string]interface{} `json:"data"`
+	MiniProgram *vxmsg.MiniProgram     `json:"miniprogram,omitempty"`
 	RetryCount int                    `json:"retry_count,omitempty"` // 重试次数
 }
 
@@ -103,6 +104,7 @@ func worker(rdb *redis.Client, queueName string, id int) {
 			TemplateID: msg.TemplateID,
 			URL:        msg.URL,
 			Data:       msg.Data,
+			MiniProgram: msg.MiniProgram,
 		}
 
 		err = vxmsg.SendTemplateMsg(tpl)
