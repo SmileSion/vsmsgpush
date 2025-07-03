@@ -21,7 +21,7 @@ type TemplateMsg struct {
 	TemplateID string                 `json:"template_id"`
 	URL        string                 `json:"url,omitempty"`
 	Data       map[string]interface{} `json:"data"`
-	MiniProgram *MiniProgram           `json:"miniprogram,omitempty"`
+	MiniProgram *MiniProgram          `json:"miniprogram,omitempty"`
 }
 
 // SendTemplateMsg 发送模板消息

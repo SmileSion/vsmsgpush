@@ -1,0 +1,109 @@
+# 📬 微信公众号消息推送服务框架
+
+基于 Go 开发的微信公众号模板消息推送系统，支持通过手机号查找 OpenID，发送模板消息，可附加跳转小程序或 H5 页面。
+
+---
+
+## 🧱 项目结构
+
+```
+vxmsgpush/
+├── config/           # 配置管理（TOML 加载）
+├── api/              # Gin 接口处理
+├── logger/           # 日志封装模块
+├── vxmsg/            # 模板消息发送逻辑
+├── vxmsg/internal/   # 获取 access_token 模块
+├── consumer          # 通过redis读取消息逻辑
+├── cmd/main.go       # 启动入口
+├── config/config.toml# 配置文件
+└── README
+```
+
+---
+
+## ⚙️ 配置说明 `config/config.toml`
+
+```toml
+[log]
+filepath = "./log/vxmsgpush.log"
+max_size = 10
+max_backups = 5
+max_age = 7
+level = "info"
+compress = true
+enable_console = true
+
+[vxkey]
+appid = "加密后的AppID"
+appsecret = "加密后的AppSecret"
+
+[security]
+enable_mobile_whitelist = true
+allowed_mobiles = ["手机号1", "手机号2"]
+
+[redis]
+addr = "localhost:6379"
+password = ""
+db = 0
+```
+
+> 使用 `utils.Decrypt()` 对 appid 和 secret 进行解密。
+
+---
+
+## 🚀 启动方式
+
+编译并运行服务：
+
+```bash
+go build -o vxmsgpush cmd/main.go
+./vxmsgpush
+```
+
+---
+
+## 📡 接口说明
+
+### POST `/push/template`
+
+发送模板消息（支持附加小程序跳转）
+
+#### 请求参数（JSON）：
+
+```json
+{
+  "mobile": "手机号",
+  "template_id": "模板ID",
+  "url": "https://example.com",  // 可选：跳转H5链接
+  "data": {
+    "thing1": { "value": "申请人" },
+    "thing2": { "value": "事项名称" },
+    "thing3": { "value": "当前进度" },
+    "time8": { "value": "2025-07-01 15:30:00" }
+  },
+  "miniprogram": {
+    "appid": "小程序ID",
+    "pagepath": "小程序页面路径"
+  }
+}
+```
+
+#### 返回示例：
+
+```json
+{
+  "message": "消息发送成功"
+}
+```
+
+---
+
+## 🧠 功能亮点
+
+* 支持消息重试机制
+* 支持跳转小程序或 H5 页面
+* 支持手机号白名单控制
+* 日志记录丰富，支持文件与控制台输出
+
+---
+
