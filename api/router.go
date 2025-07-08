@@ -9,6 +9,7 @@ import (
 
 // SetupRouter 初始化并返回 Gin Engine
 func SetupRouter() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
 	wechatServer := handler.NewWechatServer("SmileSion")
