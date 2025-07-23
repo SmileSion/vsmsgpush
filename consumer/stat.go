@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"vxmsgpush/logger"
 )
 
 // 统计计数
@@ -47,9 +48,9 @@ func StartStatRecorder() {
 
 			err := writeLogLine(line)
 			if err != nil {
-				fmt.Printf("[stat] 写入统计日志失败: %v\n", err)
+				logger.Infof("[stat] 写入统计日志失败: %v\n", err)
 			} else {
-				fmt.Printf("[stat] 写入统计日志成功: %s", line)
+				logger.Infof("[stat] 写入统计日志成功: %s", line)
 			}
 		}
 	}()
