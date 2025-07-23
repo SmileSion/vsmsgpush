@@ -13,12 +13,12 @@ import (
 )
 
 type RedisTemplateMessage struct {
-	Mobile     string                 `json:"mobile"`
-	TemplateID string                 `json:"template_id"`
-	URL        string                 `json:"url"`
-	Data       map[string]interface{} `json:"data"`
+	Mobile      string                 `json:"mobile"`
+	TemplateID  string                 `json:"template_id"`
+	URL         string                 `json:"url"`
+	Data        map[string]interface{} `json:"data"`
 	MiniProgram *vxmsg.MiniProgram     `json:"miniprogram,omitempty"`
-	RetryCount int                    `json:"retry_count,omitempty"` // 重试次数
+	RetryCount  int                    `json:"retry_count,omitempty"` // 重试次数
 }
 
 var ctx = context.Background()
@@ -84,6 +84,7 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		var msg RedisTemplateMessage
 		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 			logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
+			AddFail()
 			continue
 		}
 
@@ -96,19 +97,23 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 		if err != nil {
 			logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
+			AddFail()
 			continue
 		}
 
 		tpl := vxmsg.TemplateMsg{
-			ToUser:     openid,
-			TemplateID: msg.TemplateID,
-			URL:        msg.URL,
-			Data:       msg.Data,
+			ToUser:      openid,
+			TemplateID:  msg.TemplateID,
+			URL:         msg.URL,
+			Data:        msg.Data,
 			MiniProgram: msg.MiniProgram,
 		}
 
 		err = vxmsg.SendTemplateMsg(tpl)
 		if err != nil {
+			if msg.RetryCount == 0 {
+				AddFail()
+			}
 			msg.RetryCount++
 			logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
 
@@ -134,6 +139,7 @@ func worker(rdb *redis.Client, queueName string, id int) {
 			continue
 		}
 
+		AddSuccess()
 		logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
 	}
 }

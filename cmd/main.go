@@ -26,6 +26,7 @@ func main() {
 
 	// 初始化 Redis 客户端并启动消费者
 	rdb := consumer.InitRedis()
+	consumer.StartStatRecorder()
 	consumer.StartRedisConsumers(rdb, mainQueue, 10)
 	consumer.StartRetryScheduler(rdb, delayQueue, mainQueue)
 
