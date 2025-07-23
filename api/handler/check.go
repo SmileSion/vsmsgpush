@@ -33,8 +33,8 @@ func (s *WechatServer) handleGet(c *gin.Context) {
 	nonce := c.Query("nonce")
 	echostr := c.Query("echostr")
 
-	logger.Logger.Infof("请求来源 IP: %s", c.ClientIP())
-	logger.Logger.Infof("请求参数: %v", c.Request.URL.Query())
+	logger.Infof("请求来源 IP: %s", c.ClientIP())
+	logger.Infof("请求参数: %v", c.Request.URL.Query())
 
 	if s.checkSignature(signature, timestamp, nonce) {
 		c.String(http.StatusOK, echostr)
@@ -47,11 +47,11 @@ func (s *WechatServer) handleGet(c *gin.Context) {
 func (s *WechatServer) handlePost(c *gin.Context) {
 	body, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		logger.Logger.Errorf("读取请求体失败: %v", err)
+		logger.Errorf("读取请求体失败: %v", err)
 		c.String(http.StatusBadRequest, "读取请求失败")
 		return
 	}
-	logger.Logger.Infof("收到微信推送消息: %s", string(body))
+	logger.Infof("收到微信推送消息: %s", string(body))
 
 	// 这里可以扩展消息处理逻辑，暂时回复固定内容
 	c.String(http.StatusOK, "收到消息")

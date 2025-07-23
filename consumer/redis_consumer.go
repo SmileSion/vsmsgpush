@@ -35,7 +35,7 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, workerCount int) {
 	for i := 0; i < workerCount; i++ {
 		go worker(rdb, queueName, i+1)
 	}
-	logger.Logger.Infof("[redis] 启动 %d 个 worker 监听队列 %s", workerCount, queueName)
+	logger.Infof("[redis] 启动 %d 个 worker 监听队列 %s", workerCount, queueName)
 }
 
 // 启动延迟队列调度器（定时扫描）
@@ -50,18 +50,18 @@ func StartRetryScheduler(rdb *redis.Client, delayQueue, mainQueue string) {
 				Min: "0", Max: fmt.Sprintf("%f", now), Count: 10,
 			}).Result()
 			if err != nil {
-				logger.Logger.Errorf("[scheduler] 获取延迟消息失败: %v", err)
+				logger.Errorf("[scheduler] 获取延迟消息失败: %v", err)
 				continue
 			}
 			for _, raw := range msgs {
 				// 投入主队列
 				if err := rdb.RPush(ctx, mainQueue, raw).Err(); err != nil {
-					logger.Logger.Errorf("[scheduler] 消息重投失败: %v", err)
+					logger.Errorf("[scheduler] 消息重投失败: %v", err)
 					continue
 				}
 				// 从延迟队列移除
 				rdb.ZRem(ctx, delayQueue, raw)
-				logger.Logger.Infof("[scheduler] 消息重新投递成功")
+				logger.Infof("[scheduler] 消息重新投递成功")
 			}
 		}
 	}()
@@ -75,7 +75,7 @@ func worker(rdb *redis.Client, queueName string, id int) {
 			continue
 		}
 		if err != nil {
-			logger.Logger.Errorf("[worker-%d] Redis BRPop 错误: %v", id, err)
+			logger.Errorf("[worker-%d] Redis BRPop 错误: %v", id, err)
 			time.Sleep(time.Second)
 			continue
 		}
@@ -83,19 +83,19 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		raw := result[1]
 		var msg RedisTemplateMessage
 		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
-			logger.Logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
+			logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
 			continue
 		}
 
 		// 添加白名单校验
 		if !config.IsMobileAllowed(msg.Mobile) {
-			logger.Logger.Warnf("[worker-%d] 手机号 %s 不在白名单中，跳过", id, msg.Mobile)
+			logger.Warnf("[worker-%d] 手机号 %s 不在白名单中，跳过", id, msg.Mobile)
 			continue
 		}
 
 		openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 		if err != nil {
-			logger.Logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
+			logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
 			continue
 		}
 
@@ -110,14 +110,14 @@ func worker(rdb *redis.Client, queueName string, id int) {
 		err = vxmsg.SendTemplateMsg(tpl)
 		if err != nil {
 			msg.RetryCount++
-			logger.Logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
+			logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
 
 			if msg.RetryCount > maxRetryCount {
 				bs, _ := json.Marshal(msg)
 				if err := rdb.RPush(ctx, deadLetterQueue, bs).Err(); err != nil {
-					logger.Logger.Errorf("[worker-%d] 死信入队失败: %v", id, err)
+					logger.Errorf("[worker-%d] 死信入队失败: %v", id, err)
 				} else {
-					logger.Logger.Warnf("[worker-%d] 消息进入死信队列: %s", id, string(bs))
+					logger.Warnf("[worker-%d] 消息进入死信队列: %s", id, string(bs))
 				}
 				continue
 			}
@@ -127,13 +127,13 @@ func worker(rdb *redis.Client, queueName string, id int) {
 			delay := msg.RetryCount * delayStepSeconds
 			score := float64(time.Now().Add(time.Duration(delay) * time.Second).Unix())
 			if err := rdb.ZAdd(ctx, delayQueue, &redis.Z{Score: score, Member: bs}).Err(); err != nil {
-				logger.Logger.Errorf("[worker-%d] 延迟入队失败: %v", id, err)
+				logger.Errorf("[worker-%d] 延迟入队失败: %v", id, err)
 			} else {
-				logger.Logger.Infof("[worker-%d] 延迟消息入队，%ds 后重试，第 %d 次", id, delay, msg.RetryCount)
+				logger.Infof("[worker-%d] 延迟消息入队，%ds 后重试，第 %d 次", id, delay, msg.RetryCount)
 			}
 			continue
 		}
 
-		logger.Logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
+		logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
 	}
 }

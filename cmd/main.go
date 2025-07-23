@@ -20,7 +20,7 @@ func main() {
 
 	defer func() {
 		if err := logger.CloseAsyncWriters(); err != nil {
-			logger.Logger.Errorf("关闭日志写入器失败: %v", err)
+			logger.Errorf("关闭日志写入器失败: %v", err)
 		}
 	}()
 
@@ -34,10 +34,10 @@ func main() {
 
 	// 启动服务
 	port := ":9010"
-	logger.Logger.Infof("服务启动，监听端口 %s", port)
+	logger.Infof("服务启动，监听端口 %s", port)
 	if err := r.Run(port); err != nil {
-		logger.Logger.Fatalf("服务启动失败: %v", err)
+		logger.Fatalf("服务启动失败: %v", err)
 	}
 
-	logger.Logger.Info("程序启动完成")
+	logger.Info("程序启动完成")
 }

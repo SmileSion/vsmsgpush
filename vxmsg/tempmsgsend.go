@@ -28,27 +28,27 @@ type TemplateMsg struct {
 func SendTemplateMsg(msg TemplateMsg) error {
 	accessToken, err := internal.GetAccessToken()
 	if err != nil {
-		logger.Logger.Errorf("获取access_token失败: %v", err)
+		logger.Errorf("获取access_token失败: %v", err)
 		return fmt.Errorf("获取access_token失败: %v", err)
 	}
-	logger.Logger.Infof("获取access_token成功: %s", accessToken)
+	logger.Infof("获取access_token成功: %s", accessToken)
 
 	url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/message/template/send?access_token=%s", accessToken)
-	logger.Logger.Infof("发送模板消息，URL: %s", url)
+	logger.Infof("发送模板消息，URL: %s", url)
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		logger.Logger.Errorf("模板消息序列化失败: %v", err)
+		logger.Errorf("模板消息序列化失败: %v", err)
 		return fmt.Errorf("模板消息序列化失败: %v", err)
 	}
-	logger.Logger.Debugf("模板消息JSON: %s", string(data))
+	logger.Debugf("模板消息JSON: %s", string(data))
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	reqBody := bytes.NewBuffer(data)
 
 	resp, err := client.Post(url, "application/json", reqBody)
 	if err != nil {
-		logger.Logger.Warnf("第一次发送失败，准备重试: %v", err)
+		logger.Warnf("第一次发送失败，准备重试: %v", err)
 		time.Sleep(500 * time.Millisecond)
 
 		// 重新创建 buffer，因为之前那个已经被读完了
@@ -62,17 +62,17 @@ func SendTemplateMsg(msg TemplateMsg) error {
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		logger.Logger.Errorf("解析微信响应失败: %v", err)
+		logger.Errorf("解析微信响应失败: %v", err)
 		return fmt.Errorf("解析微信响应失败: %v", err)
 	}
-	logger.Logger.Debugf("微信响应: %+v", result)
+	logger.Debugf("微信响应: %+v", result)
 
 	if errcode, ok := result["errcode"].(float64); ok && errcode != 0 {
 		errmsg := result["errmsg"]
-		logger.Logger.Errorf("微信返回错误: %v", errmsg)
+		logger.Errorf("微信返回错误: %v", errmsg)
 		return fmt.Errorf("微信返回错误: %v", errmsg)
 	}
 
-	logger.Logger.Infof("发送模板消息成功，用户: %s，模板ID: %s", msg.ToUser, msg.TemplateID)
+	logger.Infof("发送模板消息成功，用户: %s，模板ID: %s", msg.ToUser, msg.TemplateID)
 	return nil
 }

@@ -132,3 +132,13 @@ func Trace(args ...interface{}) {
 func Tracef(format string, args ...interface{}) {
 	Logger.Tracef(format, args...)
 }
+
+// Fatal 输出 fatal 日志并终止程序
+func Fatal(args ...interface{}) {
+	Logger.Fatal(args...)
+}
+
+// Fatalf 格式化输出 fatal 日志并终止程序
+func Fatalf(format string, args ...interface{}) {
+	Logger.Fatalf(format, args...)
+}

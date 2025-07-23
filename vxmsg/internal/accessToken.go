@@ -44,7 +44,7 @@ func GetAccessToken() (string, error) {
 		time.Sleep(1 * time.Second)
 		resp, err = http.Get(url)
 		if err != nil {
-			logger.Logger.Errorf("获取token失败: %v", err)
+			logger.Errorf("获取token失败: %v", err)
 			return "", err
 		}
 	}
@@ -52,25 +52,25 @@ func GetAccessToken() (string, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Logger.Errorf("读取响应失败: %v", err)
+		logger.Errorf("读取响应失败: %v", err)
 		return "", err
 	}
-	logger.Logger.Debugf("微信返回access_token接口响应: %s", string(body))
+	logger.Debugf("微信返回access_token接口响应: %s", string(body))
 
 	var result tokenResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		logger.Logger.Errorf("解析token响应失败: %v", err)
+		logger.Errorf("解析token响应失败: %v", err)
 		return "", fmt.Errorf("解析token响应失败: %v", err)
 	}
 	if result.ErrCode != 0 {
-		logger.Logger.Errorf("微信返回错误: %s，原始响应: %s", result.ErrMsg, string(body))
+		logger.Errorf("微信返回错误: %s，原始响应: %s", result.ErrMsg, string(body))
 		return "", fmt.Errorf("微信返回错误: %s", result.ErrMsg)
 	}
 
 	token = result.AccessToken
 	expireAt = time.Now().Add(time.Duration(result.ExpiresIn-100) * time.Second)
 
-	logger.Logger.Infof("成功获取access_token，有效期: %ds", result.ExpiresIn)
+	logger.Infof("成功获取access_token，有效期: %ds", result.ExpiresIn)
 
 	return token, nil
 }
