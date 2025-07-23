@@ -82,3 +82,53 @@ func CloseAsyncWriters() error {
 	asyncWriters = asyncWriters[:0]
 	return err
 }
+
+// Info 打印 info 级别日志
+func Info(args ...interface{}) {
+	Logger.Info(args...)
+}
+
+// Infof 格式化 info 日志
+func Infof(format string, args ...interface{}) {
+	Logger.Infof(format, args...)
+}
+
+// Warn 打印 warn 级别日志
+func Warn(args ...interface{}) {
+	Logger.Warn(args...)
+}
+
+// Warnf 格式化 warn 日志
+func Warnf(format string, args ...interface{}) {
+	Logger.Warnf(format, args...)
+}
+
+// Error 打印 error 级别日志
+func Error(args ...interface{}) {
+	Logger.Error(args...)
+}
+
+// Errorf 格式化 error 日志
+func Errorf(format string, args ...interface{}) {
+	Logger.Errorf(format, args...)
+}
+
+// Debug 打印 debug 日志
+func Debug(args ...interface{}) {
+	Logger.Debug(args...)
+}
+
+// Debugf 格式化 debug 日志
+func Debugf(format string, args ...interface{}) {
+	Logger.Debugf(format, args...)
+}
+
+// Trace 打印 trace 日志
+func Trace(args ...interface{}) {
+	Logger.Trace(args...)
+}
+
+// Tracef 格式化 trace 日志
+func Tracef(format string, args ...interface{}) {
+	Logger.Tracef(format, args...)
+}
