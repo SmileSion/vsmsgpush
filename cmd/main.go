@@ -16,6 +16,7 @@ func main() {
 	// 初始化配置和日志
 	config.InitConfig()
 	config.InitMobileWhitelist()
+	config.InitMobileBlacklist()
 	logger.InitLogger()
 
 	defer func() {

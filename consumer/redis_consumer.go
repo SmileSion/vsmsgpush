@@ -88,6 +88,12 @@ func worker(rdb *redis.Client, queueName string, id int) {
 			continue
 		}
 
+		// 黑名单优先判断
+		if config.IsMobileBlocked(msg.Mobile) {
+			logger.Warnf("[worker-%d] 手机号 %s 在黑名单中，跳过", id, msg.Mobile)
+			continue
+		}
+
 		// 添加白名单校验
 		if !config.IsMobileAllowed(msg.Mobile) {
 			logger.Warnf("[worker-%d] 手机号 %s 不在白名单中，跳过", id, msg.Mobile)

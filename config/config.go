@@ -24,6 +24,9 @@ type VxConfig struct {
 type SecurityConfig struct {
 	EnableMobileWhitelist bool `toml:"enable_mobile_whitelist"`
 	AllowedMobiles        []string `toml:"allowed_mobiles"`
+
+	EnableMobileBlacklist bool     `toml:"enable_mobile_blacklist"` 
+    BlockedMobiles        []string `toml:"blocked_mobiles"`         
 }
 
 type RedisConfig struct {
