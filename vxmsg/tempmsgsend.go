@@ -65,7 +65,7 @@ func SendTemplateMsg(msg TemplateMsg) error {
 		logger.Errorf("解析微信响应失败: %v", err)
 		return fmt.Errorf("解析微信响应失败: %v", err)
 	}
-	logger.Debugf("微信响应: %+v", result)
+	logger.Infof("微信响应: %+v", result)
 
 	if errcode, ok := result["errcode"].(float64); ok && errcode != 0 {
 		errmsg := result["errmsg"]
