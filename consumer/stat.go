@@ -37,7 +37,7 @@ func StartStatRecorder() {
 	go func() {
 		for {
 			now := time.Now()
-			next := now.Truncate(10 * time.Minute).Add(10 * time.Minute)
+			next := now.Truncate(time.Minute).Add(time.Minute)
 			time.Sleep(time.Until(next))
 
 			succ := atomic.SwapInt64(&successCount, 0)
