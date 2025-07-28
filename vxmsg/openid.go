@@ -99,7 +99,7 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 	}
 
 	if parsed.ID == "" {
-		logger.Errorf("未找到 ID，响应可能异常: %s", raw.CResponseBody)
+		logger.Errorf("手机号 %s 未找到 ID，响应可能异常: %s",mobile, raw.CResponseBody)
 		return "", fmt.Errorf("未找到 ID，响应可能异常: %s", raw.CResponseBody)
 	}
 
