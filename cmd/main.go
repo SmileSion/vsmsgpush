@@ -10,6 +10,9 @@ import (
 const (
 	mainQueue  = "wx_template_msg_queue"
 	delayQueue = "wx_template_msg_delay"
+	dispatcherCount = 10  // dispatcher并发BRPop（根据CPU核数调整）
+    workerCount = 50     // worker并发处理（根据业务耗时调整）
+    chanBuffer = 2000     // chan缓冲大小，防止瞬时阻塞
 )
 
 func main() {
@@ -28,7 +31,7 @@ func main() {
 	// 初始化 Redis 客户端并启动消费者
 	rdb := consumer.InitRedis()
 	consumer.StartStatRecorder()
-	consumer.StartRedisConsumers(rdb, mainQueue, 100)
+	consumer.StartRedisConsumers(rdb, mainQueue, dispatcherCount,workerCount,chanBuffer)
 	consumer.StartRetryScheduler(rdb, delayQueue, mainQueue)
 
 	// 初始化 Gin 路由
