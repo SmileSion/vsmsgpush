@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Prometheus 指标
+// Prometheus 指标（持续累加）
 var (
 	successCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "push_success_total",
@@ -21,12 +21,24 @@ var (
 		Name: "push_fail_total",
 		Help: "Total number of failed push messages",
 	})
+	failByReasonCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "push_fail_reason_total",
+			Help: "Total number of failed pushes by reason code",
+		},
+		[]string{"reason"},
+	)
 )
 
-// 统计计数
+// 日志用的每分钟计数（独立于 Prometheus）
 var (
 	successCount int64
 	failCount    int64
+
+	failReasonLogCounter = struct {
+		sync.Mutex
+		m map[string]int64
+	}{m: make(map[string]int64)}
 )
 
 // 文件切割相关
@@ -36,25 +48,37 @@ var (
 	curMonth    string // 格式 "2006-01"
 )
 
-// AddSuccess 计数成功
+// AddSuccess 成功计数（Prometheus + 日志）
 func AddSuccess() {
 	atomic.AddInt64(&successCount, 1)
 	successCounter.Inc()
 }
 
-// AddFail 计数失败
+// AddFail 失败计数（Prometheus + 日志）
 func AddFail() {
 	atomic.AddInt64(&failCount, 1)
 	failCounter.Inc()
 }
 
-func init() {
-	// 注册指标
-	prometheus.MustRegister(successCounter)
-	prometheus.MustRegister(failCounter)
+// AddFailWithReason 增加失败原因（Prometheus + 日志）
+func AddFailWithReason(reason string) {
+	AddFail() // 累加总失败
+	failByReasonCounter.WithLabelValues(reason).Inc()
+
+	// 日志单独统计
+	failReasonLogCounter.Lock()
+	defer failReasonLogCounter.Unlock()
+	failReasonLogCounter.m[reason]++
 }
 
-// StartStatRecorder 启动统计协程，每10分钟写一次日志文件
+func init() {
+	// 注册 Prometheus 指标
+	prometheus.MustRegister(successCounter)
+	prometheus.MustRegister(failCounter)
+	prometheus.MustRegister(failByReasonCounter)
+}
+
+// StartStatRecorder 启动统计协程，每分钟写一次日志
 func StartStatRecorder() {
 	go func() {
 		for {
@@ -62,11 +86,22 @@ func StartStatRecorder() {
 			next := now.Truncate(time.Minute).Add(time.Minute)
 			time.Sleep(time.Until(next))
 
+			// 原子交换统计值
 			succ := atomic.SwapInt64(&successCount, 0)
 			fail := atomic.SwapInt64(&failCount, 0)
-
 			timestamp := next.Format("2006-01-02 15:04")
 			line := fmt.Sprintf("%s 成功: %d, 失败: %d\n", timestamp, succ, fail)
+
+			// 输出失败原因统计
+			failReasonLogCounter.Lock()
+			for reason, count := range failReasonLogCounter.m {
+				if count > 0 {
+					line += fmt.Sprintf("%s 原因[%s]: %d\n", timestamp, reason, count)
+				}
+			}
+			// 清空 map
+			failReasonLogCounter.m = make(map[string]int64)
+			failReasonLogCounter.Unlock()
 
 			err := writeLogLine(line)
 			if err != nil {
@@ -85,12 +120,10 @@ func writeLogLine(line string) error {
 
 	nowMonth := time.Now().Format("2006-01")
 	if curMonth != nowMonth {
-		// 关闭旧文件
 		if currentFile != nil {
 			currentFile.Close()
 		}
 
-		// 创建目录
 		dir := "stat"
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			if err := os.MkdirAll(dir, 0755); err != nil {
@@ -98,7 +131,6 @@ func writeLogLine(line string) error {
 			}
 		}
 
-		// 打开新文件，文件名带年月
 		filepath := fmt.Sprintf("stat/statistics-%s.log", nowMonth)
 		f, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {

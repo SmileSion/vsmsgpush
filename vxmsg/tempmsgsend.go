@@ -17,11 +17,21 @@ type MiniProgram struct {
 }
 
 type TemplateMsg struct {
-	ToUser     string                 `json:"touser"`
-	TemplateID string                 `json:"template_id"`
-	URL        string                 `json:"url,omitempty"`
-	Data       map[string]interface{} `json:"data"`
-	MiniProgram *MiniProgram          `json:"miniprogram,omitempty"`
+	ToUser      string                 `json:"touser"`
+	TemplateID  string                 `json:"template_id"`
+	URL         string                 `json:"url,omitempty"`
+	Data        map[string]interface{} `json:"data"`
+	MiniProgram *MiniProgram           `json:"miniprogram,omitempty"`
+}
+
+// WechatError 用于结构化微信返回错误
+type WechatError struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+func (e *WechatError) Error() string {
+	return fmt.Sprintf("微信返回错误: %d - %s", e.ErrCode, e.ErrMsg)
 }
 
 // SendTemplateMsg 发送模板消息
@@ -51,7 +61,6 @@ func SendTemplateMsg(msg TemplateMsg) error {
 		logger.Warnf("第一次发送失败，准备重试: %v", err)
 		time.Sleep(500 * time.Millisecond)
 
-		// 重新创建 buffer，因为之前那个已经被读完了
 		reqBody = bytes.NewBuffer(data)
 		resp, err = client.Post(url, "application/json", reqBody)
 		if err != nil {
@@ -60,17 +69,17 @@ func SendTemplateMsg(msg TemplateMsg) error {
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	// 响应结果结构体
+	var result WechatError
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		logger.Errorf("解析微信响应失败: %v", err)
 		return fmt.Errorf("解析微信响应失败: %v", err)
 	}
 	logger.Infof("微信响应: %+v", result)
 
-	if errcode, ok := result["errcode"].(float64); ok && errcode != 0 {
-		errmsg := result["errmsg"]
-		logger.Errorf("微信返回错误: %v", errmsg)
-		return fmt.Errorf("微信返回错误: %v", errmsg)
+	if result.ErrCode != 0 {
+		logger.Errorf("微信返回错误: %d - %s", result.ErrCode, result.ErrMsg)
+		return &result // 返回结构化错误
 	}
 
 	logger.Infof("发送模板消息成功，用户: %s，模板ID: %s", msg.ToUser, msg.TemplateID)

@@ -25,11 +25,11 @@ type RedisTemplateMessage struct {
 var ctx = context.Background()
 
 const (
-	maxRetryCount    = 5                       // 最大重试次数
-	deadLetterQueue  = "wx_template_msg_dlq"   // 死信队列
-	delayQueue       = "wx_template_msg_delay" // 延迟队列（ZSet）
-	delayStepSeconds = 3                       // 每次重试递增秒数
-	sendRatePerSecond = 20 // 限制发送频率， 条/秒
+	maxRetryCount     = 5                       // 最大重试次数
+	deadLetterQueue   = "wx_template_msg_dlq"   // 死信队列
+	delayQueue        = "wx_template_msg_delay" // 延迟队列（ZSet）
+	delayStepSeconds  = 3                       // 每次重试递增秒数
+	sendRatePerSecond = 200                     // 限制发送频率， 条/秒
 )
 
 // StartRedisConsumers 启动 dispatcher 和多个 worker
@@ -38,7 +38,6 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, w
 
 	// 创建限流器（每秒 sendRatePerSecond 个请求，突发容量为1）
 	limiter := rate.NewLimiter(rate.Limit(sendRatePerSecond), 5)
-
 
 	// 启动多个 dispatcher 负责从 Redis 读取消息，放入 msgChan
 	for i := 0; i < dispatcherCount; i++ {
@@ -79,7 +78,6 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, w
 	logger.Infof("[redis] 启动 %d 个 dispatcher + %d 个 worker，队列 %s，chan 缓冲 %d", dispatcherCount, workerCount, queueName, chanBuffer)
 }
 
-
 // 启动延迟队列调度器（定时扫描）
 func StartRetryScheduler(rdb *redis.Client, delayQueue, mainQueue string) {
 	go func() {
@@ -114,7 +112,7 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	var msg RedisTemplateMessage
 	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 		logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
-		AddFail()
+		AddFailWithReason("invalid_json")
 		return
 	}
 
@@ -133,7 +131,7 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 	if err != nil {
 		logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
-		AddFail()
+		AddFailWithReason("geterror_openid")
 		return
 	}
 
@@ -147,8 +145,21 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 
 	err = vxmsg.SendTemplateMsg(tpl)
 	if err != nil {
-		if msg.RetryCount == 0 {
-			AddFail()
+		if we, ok := err.(*vxmsg.WechatError); ok {
+			logger.Errorf("[worker-%d] 微信发送失败 errcode=%d errmsg=%s", id, we.ErrCode, we.ErrMsg)
+			switch we.ErrCode {
+			case 40003:
+				AddFailWithReason("invalid_openid")
+			case 43004:
+				AddFailWithReason("user_not_followed")
+			case 42001:
+				AddFailWithReason("token_expired")
+			default:
+				AddFailWithReason(fmt.Sprintf("wx_%d", we.ErrCode))
+			}
+		} else {
+			logger.Errorf("[worker-%d] 模板消息发送失败: %v", id, err)
+			AddFailWithReason("send_error")
 		}
 		msg.RetryCount++
 		logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
