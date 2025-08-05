@@ -9,7 +9,8 @@ import (
 	"vxmsgpush/logger"
 	"vxmsgpush/vxmsg"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/time/rate"
 )
 
 type RedisTemplateMessage struct {
@@ -28,11 +29,16 @@ const (
 	deadLetterQueue  = "wx_template_msg_dlq"   // 死信队列
 	delayQueue       = "wx_template_msg_delay" // 延迟队列（ZSet）
 	delayStepSeconds = 3                       // 每次重试递增秒数
+	sendRatePerSecond = 20 // 限制发送频率， 条/秒
 )
 
 // StartRedisConsumers 启动 dispatcher 和多个 worker
 func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, workerCount int, chanBuffer int) {
 	msgChan := make(chan string, chanBuffer) // 可调缓冲区大小
+
+	// 创建限流器（每秒 sendRatePerSecond 个请求，突发容量为1）
+	limiter := rate.NewLimiter(rate.Limit(sendRatePerSecond), 5)
+
 
 	// 启动多个 dispatcher 负责从 Redis 读取消息，放入 msgChan
 	for i := 0; i < dispatcherCount; i++ {
@@ -60,6 +66,11 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, w
 	for i := 0; i < workerCount; i++ {
 		go func(id int) {
 			for raw := range msgChan {
+				// 等待限流器令牌，控制速率
+				if err := limiter.Wait(ctx); err != nil {
+					logger.Errorf("[worker-%d] 限流等待失败: %v", id, err)
+					continue
+				}
 				processMessage(rdb, raw, id)
 			}
 		}(i + 1)
@@ -156,7 +167,7 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		bs, _ := json.Marshal(msg)
 		delay := msg.RetryCount * delayStepSeconds
 		score := float64(time.Now().Add(time.Duration(delay) * time.Second).Unix())
-		if err := rdb.ZAdd(ctx, delayQueue, &redis.Z{Score: score, Member: bs}).Err(); err != nil {
+		if err := rdb.ZAdd(ctx, delayQueue, redis.Z{Score: score, Member: bs}).Err(); err != nil {
 			logger.Errorf("[worker-%d] 延迟入队失败: %v", id, err)
 		} else {
 			logger.Infof("[worker-%d] 延迟消息入队，%ds 后重试，第 %d 次", id, delay, msg.RetryCount)
