@@ -112,7 +112,9 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	var msg RedisTemplateMessage
 	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 		logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
-		AddFailWithReason("invalid_json")
+		if msg.RetryCount == 0 {
+			AddFailWithReason("invalid_json")
+		}
 		return
 	}
 
@@ -131,7 +133,9 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 	if err != nil {
 		logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
-		AddFailWithReason("geterror_openid")
+		if msg.RetryCount == 0 {
+			AddFailWithReason("geterror_openid")
+		}
 		return
 	}
 
@@ -147,19 +151,23 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	if err != nil {
 		if we, ok := err.(*vxmsg.WechatError); ok {
 			logger.Errorf("[worker-%d] 微信发送失败 errcode=%d errmsg=%s", id, we.ErrCode, we.ErrMsg)
-			switch we.ErrCode {
-			case 40003:
-				AddFailWithReason("invalid_openid")
-			case 43004:
-				AddFailWithReason("user_not_followed")
-			case 42001:
-				AddFailWithReason("token_expired")
-			default:
-				AddFailWithReason(fmt.Sprintf("wx_%d", we.ErrCode))
+			if msg.RetryCount == 0 {
+				switch we.ErrCode {
+				case 40003:
+					AddFailWithReason("invalid_openid")
+				case 43004:
+					AddFailWithReason("user_not_followed")
+				case 42001:
+					AddFailWithReason("token_expired")
+				default:
+					AddFailWithReason(fmt.Sprintf("wx_%d", we.ErrCode))
+				}
 			}
 		} else {
 			logger.Errorf("[worker-%d] 模板消息发送失败: %v", id, err)
-			AddFailWithReason("send_error")
+			if msg.RetryCount == 0 {
+				AddFailWithReason("send_error")
+			}
 		}
 		msg.RetryCount++
 		logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
