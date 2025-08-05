@@ -7,6 +7,20 @@ import (
 	"sync/atomic"
 	"time"
 	"vxmsgpush/logger"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+// Prometheus 指标
+var (
+	successCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "push_success_total",
+		Help: "Total number of successful push messages",
+	})
+	failCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "push_fail_total",
+		Help: "Total number of failed push messages",
+	})
 )
 
 // 统计计数
@@ -25,11 +39,19 @@ var (
 // AddSuccess 计数成功
 func AddSuccess() {
 	atomic.AddInt64(&successCount, 1)
+	successCounter.Inc()
 }
 
 // AddFail 计数失败
 func AddFail() {
 	atomic.AddInt64(&failCount, 1)
+	failCounter.Inc()
+}
+
+func init() {
+	// 注册指标
+	prometheus.MustRegister(successCounter)
+	prometheus.MustRegister(failCounter)
 }
 
 // StartStatRecorder 启动统计协程，每10分钟写一次日志文件

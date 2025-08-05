@@ -5,6 +5,7 @@ import (
 	"vxmsgpush/config"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // SetupRouter 初始化并返回 Gin Engine
@@ -12,25 +13,34 @@ func SetupRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	wechatServer := handler.NewWechatServer("SmileSion")
-
-	wechatGroup := r.Group("/wechat")
+	// Prometheus 监控指标暴露接口
 	{
-		wechatServer.RegisterRoutes(wechatGroup)
+		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	}
 
-	// 根据配置决定是否启用手机号白名单中间件
-	middlewares := []gin.HandlerFunc{
-		onlyAllowLocalhost(),
-	}
-
-	if config.Conf.Security.EnableMobileWhitelist {
-		middlewares = append(middlewares, mobileWhitelistMiddleware())
-	}
-
-	apiGroup := r.Group("/push", middlewares...)
+	// WeChat 路由组
 	{
-		apiGroup.POST("/template", handler.PushTemplateHandler)
+		wechatServer := handler.NewWechatServer("SmileSion")
+		wechatGroup := r.Group("/wechat")
+		{
+			wechatServer.RegisterRoutes(wechatGroup)
+		}
+	}
+
+	// push 路由组（含中间件）
+	{
+		middlewares := []gin.HandlerFunc{
+			onlyAllowLocalhost(),
+		}
+
+		if config.Conf.Security.EnableMobileWhitelist {
+			middlewares = append(middlewares, mobileWhitelistMiddleware())
+		}
+
+		apiGroup := r.Group("/push", middlewares...)
+		{
+			apiGroup.POST("/template", handler.PushTemplateHandler)
+		}
 	}
 
 	return r
