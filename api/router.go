@@ -13,9 +13,16 @@ func SetupRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
+	proAllowedIPs := []string{"127.0.0.1", "192.169.132.223", "192.169.132.224"}
 	// Prometheus 监控指标暴露接口
+	proGroup := r.Group("/prometheus", AllowProthemeus(proAllowedIPs...))
 	{
-		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		proGroup.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	}
+
+	outGroup := r.Group("/out", AllowOutSystem(config.Conf.Security.AllowedIPs...))
+	{
+		outGroup.POST("/template", handler.PushTemplateHandlerRedis)
 	}
 
 	// WeChat 路由组
@@ -37,9 +44,9 @@ func SetupRouter() *gin.Engine {
 			middlewares = append(middlewares, mobileWhitelistMiddleware())
 		}
 
-		apiGroup := r.Group("/push", middlewares...)
+		localGroup := r.Group("/local", middlewares...)
 		{
-			apiGroup.POST("/template", handler.PushTemplateHandler)
+			localGroup.POST("/template", handler.PushTemplateHandler)
 		}
 	}
 

@@ -26,7 +26,9 @@ type SecurityConfig struct {
 	AllowedMobiles        []string `toml:"allowed_mobiles"`
 
 	EnableMobileBlacklist bool     `toml:"enable_mobile_blacklist"` 
-    BlockedMobiles        []string `toml:"blocked_mobiles"`         
+    BlockedMobiles        []string `toml:"blocked_mobiles"`     
+	
+	AllowedIPs []string `toml:"allowed_ips"`
 }
 
 type RedisConfig struct {
