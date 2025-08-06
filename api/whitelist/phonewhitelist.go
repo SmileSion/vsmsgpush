@@ -1,4 +1,4 @@
-package api
+package whitelist
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ type requestBody struct {
 	Mobile string `json:"mobile"`
 }
 
-func mobileWhitelistMiddleware() gin.HandlerFunc {
+func MobileWhitelistMiddleware() gin.HandlerFunc {
 	// 初始化配置中手机号白名单为 map[string]bool
 	allowedMobiles := make(map[string]bool)
 	for _, mobile := range config.Conf.Security.AllowedMobiles {

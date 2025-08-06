@@ -2,6 +2,7 @@ package api
 
 import (
 	"vxmsgpush/api/handler"
+	"vxmsgpush/api/whitelist"
 	"vxmsgpush/config"
 
 	"github.com/gin-gonic/gin"
@@ -15,12 +16,12 @@ func SetupRouter() *gin.Engine {
 
 	proAllowedIPs := []string{"127.0.0.1", "192.169.132.223", "192.169.132.224"}
 	// Prometheus 监控指标暴露接口
-	proGroup := r.Group("/prometheus", AllowProthemeus(proAllowedIPs...))
+	proGroup := r.Group("/prometheus", whitelist.AllowProthemeus(proAllowedIPs...))
 	{
 		proGroup.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	}
 
-	outGroup := r.Group("/out", AllowOutSystem(config.Conf.Security.AllowedIPs...))
+	outGroup := r.Group("/out", whitelist.AllowOutSystem(config.Conf.Security.AllowedIPs...))
 	{
 		outGroup.POST("/template", handler.PushTemplateHandlerRedis)
 	}
@@ -37,11 +38,11 @@ func SetupRouter() *gin.Engine {
 	// push 路由组（含中间件）
 	{
 		middlewares := []gin.HandlerFunc{
-			onlyAllowLocalhost(),
+			whitelist.OnlyAllowLocalhost(),
 		}
 
 		if config.Conf.Security.EnableMobileWhitelist {
-			middlewares = append(middlewares, mobileWhitelistMiddleware())
+			middlewares = append(middlewares, whitelist.MobileWhitelistMiddleware())
 		}
 
 		localGroup := r.Group("/local", middlewares...)
