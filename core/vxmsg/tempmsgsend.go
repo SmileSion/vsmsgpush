@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"vxmsgpush/logger"
-	"vxmsgpush/vxmsg/internal"
+	"vxmsgpush/core/vxmsg/internal"
 )
 
 type MiniProgram struct {

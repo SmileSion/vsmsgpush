@@ -37,11 +37,20 @@ type RedisConfig struct {
 	DB       int    `toml:"db"`
 }
 
+type MySQLConfig struct {
+	User     string `toml:"user"`
+	Password string `toml:"password"`
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	Database string `toml:"database"`
+}
+
 type Config struct {
 	Log   LogConfig `toml:"log"`
 	VxKey VxConfig  `toml:"vxkey"`
 	Security SecurityConfig `toml:"security"`
 	Redis    RedisConfig    `toml:"redis"`
+	MySQL   MySQLConfig   `toml:"mysql"`
 }
 
 var Conf Config

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 	"vxmsgpush/logger"
+	"vxmsgpush/core/db"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -90,28 +91,41 @@ func StartStatRecorder() {
 			succ := atomic.SwapInt64(&successCount, 0)
 			fail := atomic.SwapInt64(&failCount, 0)
 			timestamp := next.Format("2006-01-02 15:04")
+
+			// 拼日志（完全保留原格式）
 			line := fmt.Sprintf("%s 成功: %d, 失败: %d\n", timestamp, succ, fail)
 
 			// 输出失败原因统计
 			failReasonLogCounter.Lock()
+			reasonCopy := make(map[string]int64, len(failReasonLogCounter.m))
 			for reason, count := range failReasonLogCounter.m {
 				if count > 0 {
 					line += fmt.Sprintf("%s 原因[%s]: %d\n", timestamp, reason, count)
 				}
+				reasonCopy[reason] = count
 			}
 			// 清空 map
 			failReasonLogCounter.m = make(map[string]int64)
 			failReasonLogCounter.Unlock()
 
+			// 写日志
 			err := writeLogLine(line)
 			if err != nil {
 				logger.Infof("[stat] 写入统计日志失败: %v\n", err)
 			} else {
 				logger.Infof("[stat] 写入统计日志成功: %s", line)
 			}
+
+			// 写 MySQL
+			if db.DB != nil {
+				if err := db.StoreStat(next, succ, fail, reasonCopy); err != nil {
+					logger.Infof("[stat] 写入 MySQL 失败: %v\n", err)
+				}
+			}
 		}
 	}()
 }
+
 
 // writeLogLine 写入日志，按月份切割
 func writeLogLine(line string) error {

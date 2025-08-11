@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"vxmsgpush/consumer"
+	"vxmsgpush/core/consumer"
 	"vxmsgpush/logger"
 )
 

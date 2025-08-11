@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"vxmsgpush/logger"
-	"vxmsgpush/vxmsg/internal"
+	"vxmsgpush/core/vxmsg/internal"
 )
 
 // QueryBlockedTemplateMsg 根据消息 ID 查询是否被拦截

@@ -2,7 +2,7 @@ package test
 
 import (
 	"testing"
-	"vxmsgpush/vxmsg"
+	"vxmsgpush/core/vxmsg"
 	"vxmsgpush/logger"
 )
 

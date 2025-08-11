@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 	"github.com/gin-gonic/gin"
-	"vxmsgpush/vxmsg"
+	"vxmsgpush/core/vxmsg"
 )
 
 type MiniProgram struct {

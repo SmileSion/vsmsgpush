@@ -7,8 +7,8 @@ import (
 	"time"
 	"vxmsgpush/config"
 	"vxmsgpush/logger"
-	"vxmsgpush/vxmsg"
-
+	"vxmsgpush/core/db"
+	"vxmsgpush/core/vxmsg"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
@@ -136,6 +136,7 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		if msg.RetryCount == 0 {
 			AddFailWithReason("geterror_openid")
 		}
+		_ = db.UpdateUserSendStat(msg.Mobile, "", false)
 		return
 	}
 
@@ -152,6 +153,7 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		if we, ok := err.(*vxmsg.WechatError); ok {
 			logger.Errorf("[worker-%d] 微信发送失败 errcode=%d errmsg=%s", id, we.ErrCode, we.ErrMsg)
 			if msg.RetryCount == 0 {
+				_ = db.UpdateUserSendStat(msg.Mobile, openid, false)
 				switch we.ErrCode {
 				case 40003:
 					AddFailWithReason("invalid_openid")
@@ -195,5 +197,12 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	}
 
 	AddSuccess()
+
+	if openid != "" {
+    if err := db.UpdateUserOpenID(msg.Mobile, openid); err != nil {
+        logger.Warnf("[worker-%d] 更新openid失败: %v", id, err)
+    }
+	_ = db.UpdateUserSendStat(msg.Mobile, openid, true)
 	logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
+	}
 }

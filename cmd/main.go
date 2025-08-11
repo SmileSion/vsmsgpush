@@ -3,7 +3,9 @@ package main
 import (
 	"vxmsgpush/api"
 	"vxmsgpush/config"
-	"vxmsgpush/consumer"
+	"vxmsgpush/core/consumer"
+	"vxmsgpush/core/db"
+	_ "vxmsgpush/core/db"
 	"vxmsgpush/logger"
 )
 
@@ -21,6 +23,16 @@ func main() {
 	config.InitMobileWhitelist()
 	config.InitMobileBlacklist()
 	logger.InitLogger()
+
+	// 初始化数据库连接
+	if err := db.Init(); err != nil {
+		logger.Fatalf("数据库初始化失败: %v", err)
+	}
+
+	// 初始化数据库表
+	if err := db.InitMySQL(); err != nil {
+		logger.Fatalf("数据库表初始化失败: %v", err)
+	}
 
 	defer func() {
 		if err := logger.CloseAsyncWriters(); err != nil {

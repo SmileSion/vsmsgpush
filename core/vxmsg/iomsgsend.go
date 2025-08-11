@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"vxmsgpush/logger"
-	"vxmsgpush/vxmsg/internal"
+	"vxmsgpush/core/vxmsg/internal"
 )
 
 type TextMsg struct {
@@ -65,3 +65,4 @@ func SendTextMessage(toUser string, content string) error {
 	logger.Infof("发送消息成功，用户: %s，内容: %s", toUser, content)
 	return nil
 }
+
