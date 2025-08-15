@@ -65,6 +65,9 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("client_id", "000000013")
+	req.Header.Set("C-App-Id", "200861_app_20201118153052")
+	req.Header.Set("C-Business-Id", "5d6b66525611473f900c2a9d053227e8")
+	req.Header.Set("referer", "https://zwfwxtzx.shaanxi.gov.cn:8202")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
