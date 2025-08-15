@@ -64,12 +64,7 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("C-Business-Id", "5d6b66525611473f900c2a9d053227e8")
-	req.Header.Set("C-Tenancy-Id", "610000000000")
-	req.Header.Set("Referer", "https://zwfwxtzx.shaanxi.gov.cn:8202")
-	req.Header.Set("C-App-Id", "201199_app_17272556872746481")
-	req.Header.Set("apppwd", "6e32c1771d6148fba60f07c96d0d2791")
-	req.Header.Set("Cookie", "JSESSIONID=18870768FA07370079EAAA435A90C453")
+	req.Header.Set("client_id", "000000013")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -99,7 +94,7 @@ func GetUserOpenIDByMobile(mobile string) (string, error) {
 	}
 
 	if parsed.ID == "" {
-		logger.Errorf("手机号 %s 未找到 ID，响应可能异常: %s",mobile, raw.CResponseBody)
+		logger.Errorf("手机号 %s 未找到 ID，响应可能异常: %s", mobile, raw.CResponseBody)
 		return "", fmt.Errorf("未找到 ID，响应可能异常: %s", raw.CResponseBody)
 	}
 

@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 	"vxmsgpush/config"
-	"vxmsgpush/vxmsg"
+	"vxmsgpush/core/vxmsg"
 )
 func TestSendTextMessage(t *testing.T) {
 	config.InitConfig()
