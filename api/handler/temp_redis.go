@@ -17,6 +17,7 @@ type RedisTemplateMessage struct {
 	URL         string                 `json:"url"`
 	Data        map[string]interface{} `json:"data" binding:"required"`
 	MiniProgram *MiniProgram           `json:"miniprogram,omitempty"`
+	AppID       string                 `json:"appid,omitempty"`
 }
 
 // PushTemplateHandlerRedis 将校验通过的请求存入 Redis 队列
@@ -31,6 +32,11 @@ func PushTemplateHandlerRedis(c *gin.Context) {
 		return
 	}
 
+	appid := c.GetHeader("W-AppID")
+	if appid != "" {
+		req.AppID = appid
+	}
+
 	// 原始 JSON 数据转字符串
 	jsonBytes, err := json.Marshal(req)
 	if err != nil {
@@ -40,7 +46,7 @@ func PushTemplateHandlerRedis(c *gin.Context) {
 	}
 
 	logger.Infof("接收到推送请求，IP: %s，内容: %s", clientIP, string(jsonBytes))
-	
+
 	// 存入 Redis list
 	err = consumer.RDB.RPush(context.Background(), "wx_template_msg_queue", jsonBytes).Err()
 	if err != nil {
@@ -48,6 +54,6 @@ func PushTemplateHandlerRedis(c *gin.Context) {
 		return
 	}
 
-	logger.Infof("消息成功入队，IP: %s", clientIP)
+	logger.Infof("消息成功入队，IP: %s, AppID: %s", clientIP, req.AppID)
 	c.JSON(http.StatusOK, gin.H{"message": "消息入队成功"})
 }

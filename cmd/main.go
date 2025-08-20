@@ -5,7 +5,6 @@ import (
 	"vxmsgpush/config"
 	"vxmsgpush/core/consumer"
 	"vxmsgpush/core/db"
-	_ "vxmsgpush/core/db"
 	"vxmsgpush/logger"
 )
 
@@ -44,7 +43,7 @@ func main() {
 	rdb := consumer.InitRedis()
 	consumer.StartStatRecorder()
 	consumer.StartRedisConsumers(rdb, mainQueue, dispatcherCount,workerCount,chanBuffer)
-	consumer.StartRetryScheduler(rdb, delayQueue, mainQueue)
+	consumer.StartRetryScheduler(rdb, delayQueue, mainQueue,30)
 
 	// 初始化 Gin 路由
 	r := api.SetupRouter()

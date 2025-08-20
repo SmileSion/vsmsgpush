@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
-	"vxmsgpush/config"
-	"vxmsgpush/logger"
-	"vxmsgpush/core/db"
-	"vxmsgpush/core/vxmsg"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
+	"time"
+	"vxmsgpush/config"
+	"vxmsgpush/core/db"
+	"vxmsgpush/core/vxmsg"
+	"vxmsgpush/logger"
 )
 
 type RedisTemplateMessage struct {
@@ -20,6 +20,7 @@ type RedisTemplateMessage struct {
 	Data        map[string]interface{} `json:"data"`
 	MiniProgram *vxmsg.MiniProgram     `json:"miniprogram,omitempty"`
 	RetryCount  int                    `json:"retry_count,omitempty"` // 重试次数
+	AppID       string                 `json:"appid,omitempty"`       // 用来存 Header 的 AppID
 }
 
 var ctx = context.Background()
@@ -79,64 +80,70 @@ func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, w
 }
 
 // 启动延迟队列调度器（定时扫描）
-func StartRetryScheduler(rdb *redis.Client, delayQueue, mainQueue string) {
+func StartRetryScheduler(rdb *redis.Client, delayQueue, mainQueue string, batchSize int) {
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for range ticker.C {
 			now := float64(time.Now().Unix())
+			// 批量获取到期消息
 			msgs, err := rdb.ZRangeByScore(ctx, delayQueue, &redis.ZRangeBy{
-				Min: "0", Max: fmt.Sprintf("%f", now), Count: 10,
+				Min:   "0",
+				Max:   fmt.Sprintf("%f", now),
+				Count: int64(batchSize),
 			}).Result()
 			if err != nil {
 				logger.Errorf("[scheduler] 获取延迟消息失败: %v", err)
 				continue
 			}
+			if len(msgs) == 0 {
+				continue
+			}
+
+			var successful []interface{} // 成功投递到主队列的消息，用于批量删除
+
 			for _, raw := range msgs {
-				// 投入主队列
 				if err := rdb.RPush(ctx, mainQueue, raw).Err(); err != nil {
-					logger.Errorf("[scheduler] 消息重投失败: %v", err)
+					logger.Errorf("[scheduler] 消息重投失败: %v，内容: %s", err, raw)
 					continue
 				}
-				// 从延迟队列移除
-				rdb.ZRem(ctx, delayQueue, raw)
-				logger.Infof("[scheduler] 消息重新投递成功")
+				successful = append(successful, raw)
+			}
+
+			// 批量从延迟队列删除已经成功投递的消息
+			if len(successful) > 0 {
+				if _, err := rdb.ZRem(ctx, delayQueue, successful...).Result(); err != nil {
+					logger.Errorf("[scheduler] 删除延迟队列已投递消息失败: %v", err)
+				} else {
+					logger.Infof("[scheduler] 成功将 %d 条延迟消息投递到主队列", len(successful))
+				}
 			}
 		}
 	}()
 }
 
-// 处理消息逻辑，原来 worker 中的业务逻辑拆成函数
 func processMessage(rdb *redis.Client, raw string, id int) {
 	var msg RedisTemplateMessage
 	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 		logger.Errorf("[worker-%d] JSON 解析失败: %v，内容: %s", id, err, raw)
-		if msg.RetryCount == 0 {
-			AddFailWithReason("invalid_json")
-		}
+		AddFailWithReason("invalid_json", "") // 无法解析时没有 AppID
 		return
 	}
 
-	// 黑名单优先判断
-	if config.IsMobileBlocked(msg.Mobile) {
-		logger.Warnf("[worker-%d] 手机号 %s 在黑名单中，跳过", id, msg.Mobile)
-		return
-	}
-
-	// 添加白名单校验
-	if !config.IsMobileAllowed(msg.Mobile) {
-		logger.Warnf("[worker-%d] 手机号 %s 不在白名单中，跳过", id, msg.Mobile)
+	if config.IsMobileBlocked(msg.Mobile) || !config.IsMobileAllowed(msg.Mobile) {
+		logger.Warnf("[worker-%d] 手机号 %s 被过滤，跳过", id, msg.Mobile)
 		return
 	}
 
 	openid, err := vxmsg.GetUserOpenIDByMobile(msg.Mobile)
 	if err != nil {
 		logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
-		if msg.RetryCount == 0 {
-			AddFailWithReason("geterror_openid")
-		}
-		_ = db.UpdateUserSendStat(msg.Mobile, "", false)
+		AddFailWithReason("geterror_openid", msg.AppID)
+		// 仅在 openid 非空时更新统计
+		
+		_ = db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, false)
+		
 		return
 	}
 
@@ -150,29 +157,28 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 
 	err = vxmsg.SendTemplateMsg(tpl)
 	if err != nil {
+		msg.RetryCount++
 		if we, ok := err.(*vxmsg.WechatError); ok {
 			logger.Errorf("[worker-%d] 微信发送失败 errcode=%d errmsg=%s", id, we.ErrCode, we.ErrMsg)
-			if msg.RetryCount == 0 {
-				_ = db.UpdateUserSendStat(msg.Mobile, openid, false)
+			if msg.RetryCount == 1 {
+				_ = db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, false)
 				switch we.ErrCode {
 				case 40003:
-					AddFailWithReason("invalid_openid")
+					AddFailWithReason("invalid_openid", msg.AppID)
 				case 43004:
-					AddFailWithReason("user_not_followed")
+					AddFailWithReason("user_not_followed", msg.AppID)
 				case 42001:
-					AddFailWithReason("token_expired")
+					AddFailWithReason("token_expired", msg.AppID)
 				default:
-					AddFailWithReason(fmt.Sprintf("wx_%d", we.ErrCode))
+					AddFailWithReason(fmt.Sprintf("wx_%d", we.ErrCode), msg.AppID)
 				}
 			}
 		} else {
 			logger.Errorf("[worker-%d] 模板消息发送失败: %v", id, err)
-			if msg.RetryCount == 0 {
-				AddFailWithReason("send_error")
+			if msg.RetryCount == 1 {
+				AddFailWithReason("send_error", msg.AppID)
 			}
 		}
-		msg.RetryCount++
-		logger.Errorf("[worker-%d] 模板消息发送失败: %v（重试 %d 次）", id, err, msg.RetryCount)
 
 		if msg.RetryCount > maxRetryCount {
 			bs, _ := json.Marshal(msg)
@@ -184,7 +190,6 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 			return
 		}
 
-		// 加入延迟队列
 		bs, _ := json.Marshal(msg)
 		delay := msg.RetryCount * delayStepSeconds
 		score := float64(time.Now().Add(time.Duration(delay) * time.Second).Unix())
@@ -196,13 +201,17 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		return
 	}
 
+	// 发送成功
 	AddSuccess()
 
-	if openid != "" {
-    if err := db.UpdateUserOpenID(msg.Mobile, openid); err != nil {
-        logger.Warnf("[worker-%d] 更新openid失败: %v", id, err)
-    }
-	_ = db.UpdateUserSendStat(msg.Mobile, openid, true)
-	logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
+	if err := db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, true); err != nil {
+		logger.Warnf("[worker-%d] 成功统计更新失败: %v", id, err)
 	}
+
+	// 更新 OpenID
+	if err := db.UpdateUserOpenIDWithAppID(msg.Mobile, openid, msg.AppID); err != nil {
+		logger.Warnf("[worker-%d] 更新openid失败: %v", id, err)
+	}
+	logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
+
 }

@@ -122,9 +122,18 @@ func StoreStat(ts time.Time, succ, fail int64, reasons map[string]int64) error {
 }
 
 // UpdateUserSendStat 根据手机号和openid更新发送成功/失败统计（不计重复发送）
-func UpdateUserSendStat(mobile, openid string, success bool) error {
+func UpdateUserSendStatWithAppID(mobile, openid, appid string, success bool) error {
 	if mobile == "" {
 		return fmt.Errorf("mobile 不能为空")
+	}
+
+	table := "push_user_stat" // 默认表
+	if appid != "" {
+		table = fmt.Sprintf("push_user_stat_%s", appid)
+		// 可选：提前建表逻辑，如果不存在则创建
+		if err := InitAppIDTable(table); err != nil {
+			return err
+		}
 	}
 
 	var openidVal interface{}
@@ -136,26 +145,26 @@ func UpdateUserSendStat(mobile, openid string, success bool) error {
 
 	var sqlStr string
 	if success {
-		sqlStr = `
-		INSERT INTO push_user_stat (mobile, openid, success_count, fail_count)
-		VALUES (?, ?, 1, 0)
-		ON DUPLICATE KEY UPDATE success_count = success_count + 1
-		`
+		sqlStr = fmt.Sprintf(`
+			INSERT INTO %s (mobile, openid, success_count, fail_count)
+			VALUES (?, ?, 1, 0)
+			ON DUPLICATE KEY UPDATE success_count = success_count + 1
+		`, table)
 	} else {
-		sqlStr = `
-		INSERT INTO push_user_stat (mobile, openid, success_count, fail_count)
-		VALUES (?, ?, 0, 1)
-		ON DUPLICATE KEY UPDATE fail_count = fail_count + 1
-		`
+		sqlStr = fmt.Sprintf(`
+			INSERT INTO %s (mobile, openid, success_count, fail_count)
+			VALUES (?, ?, 0, 1)
+			ON DUPLICATE KEY UPDATE fail_count = fail_count + 1
+		`, table)
 	}
 
 	_, err := DB.Exec(sqlStr, mobile, openidVal)
 	if err != nil {
-		logger.Errorf("[mysql] 更新用户发送统计失败: mobile=%s openid=%v err=%v", mobile, openidVal, err)
+		logger.Errorf("[mysql] 更新用户发送统计失败: table=%s mobile=%s openid=%v err=%v", table, mobile, openidVal, err)
 		return err
 	}
 
-	logger.Infof("[mysql] 更新用户发送统计成功: mobile=%s openid=%v success=%v", mobile, openidVal, success)
+	logger.Infof("[mysql] 更新用户发送统计成功: table=%s mobile=%s openid=%v success=%v", table, mobile, openidVal, success)
 	return nil
 }
 
@@ -178,6 +187,94 @@ func UpdateUserOpenID(mobile, openid string) error {
 	n, _ := res.RowsAffected()
 	if n > 0 {
 		logger.Infof("[mysql] 成功更新openid: mobile=%s openid=%s", mobile, openid)
+	}
+	return nil
+}
+
+func InitAppIDTable(table string) error {
+	createSQL := fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		mobile VARCHAR(20) NOT NULL,
+		openid VARCHAR(100) NOT NULL DEFAULT '',
+		success_count BIGINT NOT NULL DEFAULT 0,
+		fail_count BIGINT NOT NULL DEFAULT 0,
+		UNIQUE KEY uniq_mobile_openid (mobile, openid)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`, table)
+
+	_, err := DB.Exec(createSQL)
+	if err != nil {
+		logger.Errorf("[mysql] 创建 appid 表失败: %s, err=%v", table, err)
+	}
+	return err
+}
+
+func StoreFailReasonWithAppID(ts time.Time, reason string, count int64, appid string) error {
+	table := "push_fail_reason"
+	if appid != "" {
+		table = fmt.Sprintf("push_fail_reason_%s", appid)
+		// 确保表存在
+		if err := InitAppIDFailReasonTable(table); err != nil {
+			return err
+		}
+	}
+
+	_, err := DB.Exec(
+		fmt.Sprintf(`INSERT INTO %s (stat_time, reason, count) VALUES (?, ?, ?)`, table),
+		ts, reason, count,
+	)
+	if err != nil {
+		logger.Errorf("[mysql] 插入失败原因失败: table=%s reason=%s count=%d err=%v", table, reason, count, err)
+	}
+	return err
+}
+
+func InitAppIDFailReasonTable(table string) error {
+	createSQL := fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		stat_time DATETIME NOT NULL,
+		reason VARCHAR(255) NOT NULL,
+		count BIGINT NOT NULL
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`, table)
+	_, err := DB.Exec(createSQL)
+	if err != nil {
+		logger.Errorf("[mysql] 创建失败原因表失败: table=%s err=%v", table, err)
+	}
+	return err
+}
+
+// UpdateUserOpenIDWithAppID 支持 AppID 的 openid 更新
+func UpdateUserOpenIDWithAppID(mobile, openid, appid string) error {
+	if mobile == "" || openid == "" {
+		return fmt.Errorf("mobile 和 openid 不能为空")
+	}
+
+	table := "push_user_stat"
+	if appid != "" {
+		table = fmt.Sprintf("push_user_stat_%s", appid)
+		if err := InitAppIDTable(table); err != nil {
+			return err
+		}
+	}
+
+	sqlStr := fmt.Sprintf(`
+	UPDATE %s
+	SET openid = ?
+	WHERE mobile = ? AND (openid IS NULL OR openid = '')
+	`, table)
+
+	res, err := DB.Exec(sqlStr, openid, mobile)
+	if err != nil {
+		logger.Errorf("[mysql] 更新openid失败: table=%s mobile=%s openid=%s err=%v", table, mobile, openid, err)
+		return err
+	}
+
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		logger.Infof("[mysql] 成功更新openid: table=%s mobile=%s openid=%s", table, mobile, openid)
 	}
 	return nil
 }
