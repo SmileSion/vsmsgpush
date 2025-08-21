@@ -3,3 +3,4 @@ test/config/
 log/
 bin/
 stat/
+.env

@@ -1,52 +1,26 @@
 @echo off
 rem ------------------------- 配置部分 -------------------------
-rem 定义应用程序名称
-set APP_NAME=vxmsgpush
-
-rem 定义输出目录
 set OUTPUT_DIR=bin
 
-rem 自定义 main.go 的路径
-set MAIN_PATH=cmd\main.go
+rem 需要编译的 main.go 清单（格式：子目录名=main.go 路径）
+rem 左边是生成的文件名，右边是 main.go 的路径
+set TARGETS=VxMsgPush=cmd\Push\main.go VxApi=cmd\Api\main.go TokenService=cmd\Token\main.go
 
 rem ------------------------- 检查并创建输出目录 -------------------------
-rem 检查并创建输出目录
 if not exist %OUTPUT_DIR% (
     mkdir %OUTPUT_DIR%
 )
 
 rem ------------------------- 编译不同平台 -------------------------
-
-@REM rem 编译为 Windows 可执行文件
-@REM echo 编译 Windows 可执行文件...
-@REM set GOOS=windows
-@REM set GOARCH=amd64
-@REM go build -o %OUTPUT_DIR%\%APP_NAME%-windows-amd64.exe %MAIN_PATH%
-
-rem 编译为 Linux 可执行文件
-echo 编译 Linux 可执行文件...
 set GOOS=linux
 set GOARCH=amd64
-go build -o %OUTPUT_DIR%\%APP_NAME%-linux-amd64 %MAIN_PATH%
 
-@REM rem 编译为 macOS 可执行文件
-@REM echo 编译 macOS 可执行文件...
-@REM set GOOS=darwin
-@REM set GOARCH=amd64
-@REM go build -o %OUTPUT_DIR%\%APP_NAME%-darwin-amd64 %MAIN_PATH%
+for %%i in (%TARGETS%) do (
+    for /f "tokens=1,2 delims==" %%a in ("%%i") do (
+        echo 正在编译 %%a ...
+        go build -o %OUTPUT_DIR%\%%a-linux-amd64 %%b
+    )
+)
 
-@REM rem 编译为 ARM 架构 Linux 可执行文件
-@REM echo 编译 ARM Linux 可执行文件...
-@REM set GOOS=linux
-@REM set GOARCH=arm64
-@REM go build -o %OUTPUT_DIR%\%APP_NAME%-linux-arm64 %MAIN_PATH%
-
-@REM rem 编译为 32 位 Windows 可执行文件
-@REM echo 编译 32 位 Windows 可执行文件...
-@REM set GOOS=windows
-@REM set GOARCH=386
-@REM go build -o %OUTPUT_DIR%\%APP_NAME%-windows-386.exe %MAIN_PATH%
-
-rem 完成
 echo 所有平台的可执行文件已经生成。
 pause

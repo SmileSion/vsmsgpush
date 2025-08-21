@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const testPlainText = "d4e60b4c254d29da579478ee790f7b8a"
+const testPlainText = "v7j1X8xFk+lktzgDl8qA9G7V6z+wUgSBC9wlveFVX/Y3oYmccldtyiQVXG7xGsZt"
 
 func TestEncryptDecrypt(t *testing.T) {
 	// 加密
@@ -16,7 +16,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	t.Log("加密结果：",encrypted)
 
 	// 解密
-	decrypted, err := utils.Decrypt(encrypted)
+	decrypted, err := utils.Decrypt(testPlainText)
 	if err != nil {
 		t.Fatalf("解密失败: %v", err)
 	}
