@@ -51,8 +51,11 @@ func (s *server) GetAccessToken(ctx context.Context, req *pb.TokenRequest) (*pb.
 // 定时获取 token
 func fetchTokenLoop(appID, appSecret string, logger *log.Logger) {
 	for {
-		url := fmt.Sprintf("http://127.0.0.1:9011/weixin_api/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
-		// url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
+		//本地测试用
+		// url := fmt.Sprintf("http://127.0.0.1:9011/weixin_api/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
+
+		// 生产环境用
+		url := fmt.Sprintf("http://192.170.144.52:9010/weixin_api/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
 
 		resp, err := http.Get(url)
 		if err != nil {
@@ -96,7 +99,7 @@ func main() {
 		Filename:   "log/tokenservice.log", // 日志文件路径
 		MaxSize:    50,                     // 每个日志文件最大 50MB
 		MaxBackups: 0,                      // 最多保留 5 个旧日志
-		MaxAge:     0,                     // 最多保留 30 天
+		MaxAge:     0,                      // 最多保留 30 天
 		Compress:   true,                   // 压缩旧日志
 	}
 	logger := log.New(logOutput, "", log.LstdFlags)
