@@ -278,3 +278,62 @@ func UpdateUserOpenIDWithAppID(mobile, openid, appid string) error {
 	}
 	return nil
 }
+
+func InitAppIDStatTable(appid string) error {
+	table := fmt.Sprintf("push_stat_%s", appid)
+	createSQL := fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
+		id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		stat_time DATETIME NOT NULL,
+		success_count BIGINT NOT NULL,
+		fail_count BIGINT NOT NULL,
+		UNIQUE KEY uniq_stat_time (stat_time)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+	`, table)
+
+	_, err := DB.Exec(createSQL)
+	if err != nil {
+		logger.Errorf("[mysql] 创建 AppID 统计表失败: %s, err=%v", table, err)
+	}
+	return err
+}
+
+// UpdatePushStatWithAppID 按分钟统计消息成功/失败数，支持 AppID
+func UpdatePushStatWithAppID(ts time.Time, success bool, appid string) error {
+	// 时间按分钟截断
+	minute := ts.Truncate(time.Minute)
+
+	table := "push_stat"
+	if appid != "" {
+		table = fmt.Sprintf("push_stat_%s", appid)
+		if err := InitAppIDStatTable(appid); err != nil {
+			return err
+		}
+	}
+
+	var sqlStr string
+	if success {
+		sqlStr = fmt.Sprintf(`
+			INSERT INTO %s (stat_time, success_count, fail_count)
+			VALUES (?, 1, 0)
+			ON DUPLICATE KEY UPDATE success_count = success_count + 1
+		`, table)
+	} else {
+		sqlStr = fmt.Sprintf(`
+			INSERT INTO %s (stat_time, success_count, fail_count)
+			VALUES (?, 0, 1)
+			ON DUPLICATE KEY UPDATE fail_count = fail_count + 1
+		`, table)
+	}
+
+	_, err := DB.Exec(sqlStr, minute)
+	if err != nil {
+		logger.Errorf("[mysql] 更新 push_stat 失败: table=%s time=%s success=%v err=%v",
+			table, minute.Format("2006-01-02 15:04"), success, err)
+		return err
+	}
+
+	logger.Infof("[mysql] 更新 push_stat 成功: table=%s time=%s success=%v",
+		table, minute.Format("2006-01-02 15:04"), success)
+	return nil
+}

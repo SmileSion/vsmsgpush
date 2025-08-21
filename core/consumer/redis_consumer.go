@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"golang.org/x/time/rate"
 	"time"
 	"vxmsgpush/config"
 	"vxmsgpush/core/db"
 	"vxmsgpush/core/vxmsg"
 	"vxmsgpush/logger"
+
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/time/rate"
 )
 
 type RedisTemplateMessage struct {
@@ -141,9 +142,12 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		logger.Errorf("[worker-%d] 获取 OpenID 失败: %v", id, err)
 		AddFailWithReason("geterror_openid", msg.AppID)
 		// 仅在 openid 非空时更新统计
-		
+
 		_ = db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, false)
-		
+		if err := db.UpdatePushStatWithAppID(time.Now(), false, msg.AppID); err != nil {
+			logger.Warnf("[worker-%d] push_stat 更新失败: %v", id, err)
+		}
+
 		return
 	}
 
@@ -162,6 +166,9 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 			logger.Errorf("[worker-%d] 微信发送失败 errcode=%d errmsg=%s", id, we.ErrCode, we.ErrMsg)
 			if msg.RetryCount == 1 {
 				_ = db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, false)
+				if err := db.UpdatePushStatWithAppID(time.Now(), false, msg.AppID); err != nil {
+					logger.Warnf("[worker-%d] push_stat 更新失败: %v", id, err)
+				}
 				switch we.ErrCode {
 				case 40003:
 					AddFailWithReason("invalid_openid", msg.AppID)
@@ -203,6 +210,11 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 
 	// 发送成功
 	AddSuccess()
+
+	// 更新 push_stat 表
+	if err := db.UpdatePushStatWithAppID(time.Now(), true, msg.AppID); err != nil {
+		logger.Warnf("[worker-%d] push_stat 更新失败: %v", id, err)
+	}
 
 	if err := db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, true); err != nil {
 		logger.Warnf("[worker-%d] 成功统计更新失败: %v", id, err)
