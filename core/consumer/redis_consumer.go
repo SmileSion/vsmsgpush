@@ -14,6 +14,17 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type statTask struct {
+	Type   string // "push_stat" | "user_stat" | "openid"
+	AppID  string
+	Mobile string
+	OpenID string
+	OK     bool
+	Time   time.Time
+}
+
+var statChan = make(chan statTask, 1000)
+
 type RedisTemplateMessage struct {
 	Mobile      string                 `json:"mobile"`
 	TemplateID  string                 `json:"template_id"`
@@ -33,6 +44,27 @@ const (
 	delayStepSeconds  = 3                       // 每次重试递增秒数
 	sendRatePerSecond = 200                     // 限制发送频率， 条/秒
 )
+
+func StartStatWriter() {
+	go func() {
+		for task := range statChan {
+			switch task.Type {
+			case "push_stat":
+				if err := db.UpdatePushStatWithAppID(task.Time, task.OK, task.AppID); err != nil {
+					logger.Warnf("[stat-writer] push_stat 更新失败: %v", err)
+				}
+			case "user_stat":
+				if err := db.UpdateUserSendStatWithAppID(task.Mobile, task.OpenID, task.AppID, task.OK); err != nil {
+					logger.Warnf("[stat-writer] user_stat 更新失败: %v", err)
+				}
+			case "openid":
+				if err := db.UpdateUserOpenIDWithAppID(task.Mobile, task.OpenID, task.AppID); err != nil {
+					logger.Warnf("[stat-writer] 更新openid失败: %v", err)
+				}
+			}
+		}
+	}()
+}
 
 // StartRedisConsumers 启动 dispatcher 和多个 worker
 func StartRedisConsumers(rdb *redis.Client, queueName string, dispatcherCount, workerCount int, chanBuffer int) {
@@ -143,11 +175,8 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 		AddFailWithReason("geterror_openid", msg.AppID)
 		// 仅在 openid 非空时更新统计
 
-		_ = db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, false)
-		if err := db.UpdatePushStatWithAppID(time.Now(), false, msg.AppID); err != nil {
-			logger.Warnf("[worker-%d] push_stat 更新失败: %v", id, err)
-		}
-
+		statChan <- statTask{Type: "user_stat", Mobile: msg.Mobile, OpenID: openid, AppID: msg.AppID, OK: false}
+		statChan <- statTask{Type: "push_stat", Time: time.Now(), AppID: msg.AppID, OK: false}
 		return
 	}
 
@@ -212,18 +241,9 @@ func processMessage(rdb *redis.Client, raw string, id int) {
 	AddSuccess()
 
 	// 更新 push_stat 表
-	if err := db.UpdatePushStatWithAppID(time.Now(), true, msg.AppID); err != nil {
-		logger.Warnf("[worker-%d] push_stat 更新失败: %v", id, err)
-	}
-
-	if err := db.UpdateUserSendStatWithAppID(msg.Mobile, openid, msg.AppID, true); err != nil {
-		logger.Warnf("[worker-%d] 成功统计更新失败: %v", id, err)
-	}
-
-	// 更新 OpenID
-	if err := db.UpdateUserOpenIDWithAppID(msg.Mobile, openid, msg.AppID); err != nil {
-		logger.Warnf("[worker-%d] 更新openid失败: %v", id, err)
-	}
+	statChan <- statTask{Type: "push_stat", Time: time.Now(), AppID: msg.AppID, OK: true}
+	statChan <- statTask{Type: "user_stat", Mobile: msg.Mobile, OpenID: openid, AppID: msg.AppID, OK: true}
+	statChan <- statTask{Type: "openid", Mobile: msg.Mobile, OpenID: openid, AppID: msg.AppID}
 	logger.Infof("[worker-%d] 模板消息发送成功: %s", id, openid)
 
 }

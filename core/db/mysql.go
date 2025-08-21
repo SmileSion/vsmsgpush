@@ -49,7 +49,8 @@ func InitMySQL() error {
 		id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		stat_time DATETIME NOT NULL,
 		success_count BIGINT NOT NULL,
-		fail_count BIGINT NOT NULL
+		fail_count BIGINT NOT NULL,
+		UNIQUE KEY uniq_stat_time (stat_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 	`
 	createReasonTable := `
